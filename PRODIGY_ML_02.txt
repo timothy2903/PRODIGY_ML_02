@@ -1,0 +1,129 @@
+#include <iostream>
+#include <vector>
+#include <cmath>
+#include <limits>
+#include <random>
+#include <algorithm>
+
+// Structure to hold customer information
+struct Customer {
+    double total_spent;
+    int num_purchases;
+};
+
+// Structure for cluster centroids
+struct Centroid {
+    double total_spent;
+    int num_purchases;
+};
+
+// Function to calculate Euclidean distance between a customer and a centroid
+double calculateDistance(const Customer& customer, const Centroid& centroid) {
+    double spent_diff = customer.total_spent - centroid.total_spent;
+    double purchases_diff = customer.num_purchases - centroid.num_purchases;
+    return std::sqrt(spent_diff * spent_diff + purchases_diff * purchases_diff);
+}
+
+// Initialize 'k' centroids randomly from the customer dataset
+std::vector<Centroid> initializeCentroids(const std::vector<Customer>& customers, int k) {
+    std::vector<Centroid> centroids;
+    std::random_device rd;
+    std::mt19937 rng(rd());
+    std::uniform_int_distribution<int> dist(0, customers.size() - 1);
+
+    for (int i = 0; i < k; ++i) {
+        int index = dist(rng);
+        centroids.push_back({
+            customers[index].total_spent,
+            customers[index].num_purchases
+        });
+    }
+
+    return centroids;
+}
+
+// Assign each customer to the nearest centroid
+std::vector<int> assignToClusters(const std::vector<Customer>& customers, const std::vector<Centroid>& centroids) {
+    std::vector<int> assignments(customers.size());
+
+    for (size_t i = 0; i < customers.size(); ++i) {
+        double min_distance = std::numeric_limits<double>::max();
+        int assigned_cluster = 0;
+
+        for (size_t j = 0; j < centroids.size(); ++j) {
+            double distance = calculateDistance(customers[i], centroids[j]);
+            if (distance < min_distance) {
+                min_distance = distance;
+                assigned_cluster = j;
+            }
+        }
+
+        assignments[i] = assigned_cluster;
+    }
+
+    return assignments;
+}
+
+// Recalculate centroids based on current cluster assignments
+std::vector<Centroid> recomputeCentroids(const std::vector<Customer>& customers, const std::vector<int>& clusters, int k) {
+    std::vector<Centroid> new_centroids(k, {0, 0});
+    std::vector<int> count(k, 0);
+
+    for (size_t i = 0; i < customers.size(); ++i) {
+        int cluster = clusters[i];
+        new_centroids[cluster].total_spent += customers[i].total_spent;
+        new_centroids[cluster].num_purchases += customers[i].num_purchases;
+        count[cluster]++;
+    }
+
+    for (int i = 0; i < k; ++i) {
+        if (count[i] > 0) {
+            new_centroids[i].total_spent /= count[i];
+            new_centroids[i].num_purchases /= count[i];
+        }
+    }
+
+    return new_centroids;
+}
+
+// Main K-Means clustering algorithm
+std::vector<int> kMeans(const std::vector<Customer>& customers, int k, int max_iterations = 100) {
+    std::vector<Centroid> centroids = initializeCentroids(customers, k);
+    std::vector<int> clusters;
+
+    for (int iter = 0; iter < max_iterations; ++iter) {
+        std::vector<int> new_clusters = assignToClusters(customers, centroids);
+
+        // Stop if clustering hasn't changed
+        if (new_clusters == clusters) {
+            break;
+        }
+
+        clusters = new_clusters;
+        centroids = recomputeCentroids(customers, clusters, k);
+    }
+
+    return clusters;
+}
+
+int main() {
+    std::vector<Customer> customers = {
+        {100, 5}, {200, 10}, {50, 2}, {300, 15}, {150, 8},
+        {80, 4}, {250, 12}, {180, 9}, {120, 6}, {220, 11}
+    };
+
+    int k = 3;
+    int max_iterations = 100;
+
+    std::vector<int> clusters = kMeans(customers, k, max_iterations);
+
+    std::cout << "Customer clusters:\n";
+    for (size_t i = 0; i < customers.size(); ++i) {
+        std::cout << "Customer " << i + 1
+                  << " (Total spent: " << customers[i].total_spent
+                  << ", Num purchases: " << customers[i].num_purchases
+                  << ") - Cluster: " << clusters[i] + 1 << "\n";
+    }
+
+    return 0;
+}
